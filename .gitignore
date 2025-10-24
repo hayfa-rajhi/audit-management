@@ -13,3 +13,5 @@ __pycache__/
 
 # Autres fichiers sensibles
 *.log
+
+reports/

@@ -52,6 +52,8 @@ class Questionnaire(Base):
     code = Column(Text, unique=True)
     label = Column(String(250))
 
+    versions = relationship("QuestionnaireVersion", back_populates="questionnaire", cascade="all, delete")
+
 class QuestionnaireVersion(Base):
     __tablename__ = "questionnaire_version"
     id = Column(Integer, Sequence('questionnaire_version_id_seq'), primary_key=True)
@@ -59,18 +61,21 @@ class QuestionnaireVersion(Base):
     version_no = Column(Integer)
     status = Column(Text)
 
+    questionnaire = relationship("Questionnaire", back_populates="versions")
+    questions = relationship("Question", secondary="questionnaire_version_question", back_populates="versions")
+
 class Question(Base):
-    __tablename__ = "question"
-    id = Column(Integer, Sequence('question_id_seq'), primary_key=True)
-    title = Column(Text)
-    response_type = Column(responsetype_enum)
-    criticality = Column(criticality_enum, nullable=False)
+     __tablename__ = "question" 
+     id = Column(Integer, Sequence('question_id_seq'), primary_key=True) 
+     title = Column(Text) 
+     response_type = Column(responsetype_enum) 
+     criticality = Column(criticality_enum, nullable=False)
+     versions = relationship("QuestionnaireVersion", secondary="questionnaire_version_question", back_populates="questions")
 
 class QuestionnaireVersionQuestion(Base):
     __tablename__ = "questionnaire_version_question"
     questionnaire_version_id = Column(Integer, ForeignKey('questionnaire_version.id', ondelete='CASCADE'), primary_key=True)
-    question_id = Column(Integer, ForeignKey('question.id'), primary_key=True)
-
+    question_id = Column(Integer, ForeignKey('question.id', ondelete='CASCADE'), primary_key=True)
 class Audit(Base):
     __tablename__ = "audit"
     id = Column(Integer, primary_key=True)
