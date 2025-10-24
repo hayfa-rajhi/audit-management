@@ -1,20 +1,19 @@
 from fastapi import APIRouter,Depends,HTTPException
 from sqlalchemy.orm import Session
-from app.db import get_db
-from app.models import (
+from app.config.database import get_db
+from app.models.models import (
     Entity,QuestionnaireVersion,Questionnaire,AuditSession,User,UserRole,Audit,AuditParticipant,
     AuditQuestion,AuditResponse,Finding,CorrectiveAction,Attachment,AuditQuestion,Question)
 
-from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional
-from datetime import timedelta
+  
 import logging
-from datetime import timezone, timedelta
+from datetime import timezone, timedelta,datetime
 from sqlalchemy.orm import Session
-from app.utility import validate_final_score
+from app.utils.utility import validate_final_score
 import os
 from fastapi import UploadFile, File
+from app.schemas.schema import RescheduleRequest,AuditRequest
+
 
 router = APIRouter(prefix="/audit")
 
@@ -25,25 +24,9 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Request schema for rescheduling
-class RescheduleRequest(BaseModel):
-    # audit_code: str  # e.g., "A-2025-01"
-    audit_id:int
-    new_start_time: Optional[datetime] = None
-    new_end_time: Optional[datetime] = None
-    # new_auditee_email: Optional[str] = None
-    reason: str
-
-class auditRequest(BaseModel):
-    entity_code: str
-    auditor_email: str
-    auditee_email: str
-    start_time: datetime
-    end_time: datetime
-    questionnaire_code:str
 
 @router.post("/plan")
-def plan_audit(auditR: auditRequest, db: Session = Depends(get_db)):
+def plan_audit(auditR: AuditRequest, db: Session = Depends(get_db)):
     # 1. Retrieve the entity
     entity = db.query(Entity).filter_by(code=auditR.entity_code).first()
     if not entity:
@@ -238,51 +221,6 @@ def record_answer(
     }
 
 
-@router.post("/finding")
-def add_finding(
-    audit_id: int,
-    audit_question_id: int,
-    type: str,
-    description: str,
-    db: Session = Depends(get_db)
-):
-    # 1. Validate audit
-    audit = db.query(Audit).filter_by(id=audit_id).first()
-    if not audit:
-        raise HTTPException(status_code=404, detail="Audit not found")
-
-    # 2. Validate audit question
-    audit_question = db.query(AuditQuestion).filter_by(id=audit_question_id, audit_id=audit_id).first()
-    if not audit_question:
-        raise HTTPException(status_code=404, detail="Audit question not found or doesn't belong to this audit")
-
-    # 3. Create finding
-    new_finding = Finding(
-        audit_id=audit_id,
-        audit_question_id=audit_question_id,
-        type=type
-    )
-    db.add(new_finding)
-    db.commit()
-    db.refresh(new_finding)
-
-    # 4. Create corrective action
-    new_corrective_action = CorrectiveAction(
-        finding_id=new_finding.id,
-        title=description,
-        status="in_progress"  # for now it is in progress_but we must replace it to opened
-    )
-    db.add(new_corrective_action)
-    db.commit()
-    db.refresh(new_corrective_action)
-
-    # 5. Return result
-    return {
-        "message": "Finding and corrective action created successfully",
-        "finding_id": new_finding.id,
-        "corrective_action_id": new_corrective_action.id
-    }
-
 
 @router.get("/get/{audit_id}")
 def get_audit(audit_id: int, db: Session = Depends(get_db)):
@@ -437,3 +375,22 @@ def add_audit_question(audit_id:int,question_id,db:Session=Depends(get_db)):
         "message": f"audit question  added successfully to {audit.id}",
         "audit_question": question.title,
     }
+
+# @router.post("/record_answer")
+#value in  this case must be TEXT but we defined as bytea (file) so we could handle this case
+# def record_answer(audit_id:int,audit_question_id:int,db:Session=Depends(get_db)):
+#     audit = db.query(Audit).filter_by(id=audit_id).first()
+#     if not audit:
+#         raise HTTPException(status_code=404, detail="Audit not found")
+#     auditQ = db.query(AuditQuestion).filter_by(id=audit_question_id).first()
+#     if not auditQ:
+#             raise HTTPException(status_code=404, detail="AuditQuestion not found")
+    
+#     # new_audit_response = AuditResponse(
+#     #    audit_question_id=audit_question_id,
+#     #     author_id=,
+#     #     value=
+#     # )
+#     # db.add(new_audit_response)
+#     # db.commit()
+#     # db.refresh(new_audit_response)

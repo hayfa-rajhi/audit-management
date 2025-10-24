@@ -4,18 +4,67 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID, BYTEA, TSRANGE
 from sqlalchemy.orm import relationship, backref
 import uuid
-from app.db import Base 
+from app.config.database import Base 
 
-# ENUM definitions
-entity_type_enum = Enum('site', 'process', 'suplier', name='entity_type')
-questionnaire_label_enum = Enum('ISO', 'IATF', 'VDA', 'INTERNAL', 'CLIENT', name='questionnaire_label')
-responsetype_enum = Enum('yes/no', 'scale', 'color', 'text', 'file', name='responsetype')
-criticality_enum = Enum('critical', 'not_ctrical', name='criticality_level')
-audit_status_enum = Enum('planned', 'confirmed', 'postponed', 'cancled', name='audit_status')
-score_type_enum = Enum('color', 'scale', 'yes_no', name='score_type')
-corrective_action_status_enum = Enum('in_progress', 'completed', 'post_ponned', name='corrective_action_status')
-kpi_type_enum = Enum('performance', 'management', name='kpi_type')
-period_type_enum = Enum('monthy', 'quarterly', 'annuaely', name='period_type')
+import enum
+
+
+
+class EntityType(str, enum.Enum):
+    site = "site"
+    process = "process"
+    supplier = "supplier"
+
+
+class QuestionnaireLabel(str, enum.Enum):
+    ISO = "ISO"
+    IATF = "IATF"
+    VDA = "VDA"
+    INTERNAL = "INTERNAL"
+    CLIENT = "CLIENT"
+
+
+class ResponseType(str, enum.Enum):
+    yes_no = "yes_no"
+    scale = "scale"
+    color = "color"
+    text = "text"
+    file = "file"
+
+
+class CriticalityLevel(str, enum.Enum):
+    critical = "critical"
+    not_critical = "not_critical"
+
+
+class AuditStatus(str, enum.Enum):
+    planned = "planned"
+    confirmed = "confirmed"
+    postponed = "postponed"
+    cancelled = "cancelled"
+
+
+class ScoreType(str, enum.Enum):
+    color = "color"
+    scale = "scale"
+    yes_no = "yes_no"
+
+
+class CorrectiveActionStatus(str, enum.Enum):
+    in_progress = "in_progress"
+    completed = "completed"
+    postponed = "postponed"
+
+
+class KPIType(str, enum.Enum):
+    performance = "performance"
+    management = "management"
+
+
+class PeriodType(str, enum.Enum):
+    monthly = "monthly"
+    quarterly = "quarterly"
+    annually = "annually"
 
 class User(Base):
     __tablename__ = "user"
@@ -40,7 +89,7 @@ class UserRole(Base):
 class Entity(Base):
     __tablename__ = "entity"
     id = Column(Integer, Sequence('entity_id_seq'), primary_key=True)
-    type = Column(entity_type_enum, nullable=False)
+    type = Column(Enum(EntityType), nullable=False)
     code = Column(Text, unique=True)
     label = Column(String(250))
     parent_id = Column(Integer, ForeignKey('entity.id', ondelete='SET NULL'))
@@ -68,8 +117,8 @@ class Question(Base):
      __tablename__ = "question" 
      id = Column(Integer, Sequence('question_id_seq'), primary_key=True) 
      title = Column(Text) 
-     response_type = Column(responsetype_enum) 
-     criticality = Column(criticality_enum, nullable=False)
+     response_type = Column(Enum(ResponseType)) 
+     criticality = Column(Enum(CriticalityLevel), nullable=False)
      versions = relationship("QuestionnaireVersion", secondary="questionnaire_version_question", back_populates="questions")
 
 class QuestionnaireVersionQuestion(Base):
@@ -81,8 +130,8 @@ class Audit(Base):
     id = Column(Integer, primary_key=True)
     entity_id = Column(Integer, ForeignKey('entity.id', ondelete='SET NULL'))
     questionnaire_version_id = Column(Integer, ForeignKey('questionnaire_version.id', ondelete='SET NULL'))
-    status = Column(audit_status_enum)
-    final_score_type = Column(score_type_enum)
+    status = Column(Enum(AuditStatus))
+    final_score_type = Column(Enum(ScoreType))
     final_score = Column(Text)
     __table_args__ = (
         CheckConstraint(
@@ -125,13 +174,20 @@ class Finding(Base):
     audit_id = Column(Integer, ForeignKey('audit.id', ondelete='CASCADE'))
     audit_question_id = Column(Integer, ForeignKey('audit_question.id', ondelete='SET NULL'))
     type = Column(Text)
+    corrective_action = relationship(
+        "CorrectiveAction",
+        back_populates="finding",
+        uselist=False,  # one-to-one relationship
+        cascade="all, delete-orphan"
+    )
 
 class CorrectiveAction(Base):
     __tablename__ = "corrective_action"
     id = Column(Integer, primary_key=True)
     finding_id = Column(Integer, ForeignKey('finding.id'), unique=True)
     title = Column(Text)
-    status = Column(corrective_action_status_enum)
+    status = Column(Enum(CorrectiveActionStatus))
+    finding = relationship("Finding", back_populates="corrective_action")
 
 # KPI: Definitions, Targets, Values, Process Actions
 class KPIDefinition(Base):
@@ -139,13 +195,13 @@ class KPIDefinition(Base):
     id = Column(Integer, primary_key=True)
     code = Column(Text, unique=True)
     label = Column(Text)
-    type = Column(kpi_type_enum)
+    type = Column(Enum(KPIType))
 
 class KPIValue(Base):
     __tablename__ = "kpi_value"
     id = Column(Integer, primary_key=True)
     kpi_id = Column(Integer, ForeignKey('kpi_definition.id'))
-    periodtype = Column(period_type_enum)
+    periodtype = Column(Enum(PeriodType))
     period = Column(TSRANGE)
     value = Column(Integer)
 
